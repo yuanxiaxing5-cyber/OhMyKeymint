@@ -17,38 +17,20 @@ pub fn init_logger_fallback(level: LevelFilter) {
 }
 
 fn init_logger_inner(configured_level: LevelFilter) -> Result<()> {
-    let (config, file_logging_ready) = kmr_common::runtime::logging::build_console_file_config(
-        DEFAULT_LOG_PATH,
-        PATTERN,
-        LevelFilter::Trace,
-        "injector logging",
-    )?;
-
+    // Use only android_logger (logcat). Disable file appender to avoid frequent
+    // disk log writes. This preserves logcat output for debugging while
+    // preventing growth of files under /data/misc/keystore/omk/logs/.
     let android_logger = android_logger::AndroidLogger::new(
         android_logger::Config::default()
             .with_max_level(LevelFilter::Trace)
             .with_tag("OhMyKeymint"),
     );
-    let log4rs = log4rs::Logger::new(config);
 
-    multi_log::MultiLogger::init(
-        vec![Box::new(android_logger), Box::new(log4rs)],
-        log::Level::Trace,
-    )?;
+    // Initialize logger with only the Android logger (no file logger).
+    multi_log::MultiLogger::init(vec![Box::new(android_logger)], log::Level::Trace)?;
     log::set_max_level(configured_level);
 
-    if file_logging_ready {
-        log::info!(
-            "file logging enabled at {} with level {:?}",
-            DEFAULT_LOG_PATH,
-            configured_level
-        );
-    }
-
-    log::info!(
-        "initialized fallback logging with fixed level {:?}",
-        configured_level
-    );
+    log::info!("injector logging initialized with file appender disabled");
 
     Ok(())
 }
