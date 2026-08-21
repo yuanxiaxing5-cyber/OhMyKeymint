@@ -38,6 +38,15 @@ async function runScript(scriptName, successText) {
 
 const execBtn = document.getElementById('execBtn');
 if (execBtn) {
-    execBtn.addEventListener('click', () => runScript('script.sh', 'ts密钥远程更新成功等待下载替换'));
+    execBtn.addEventListener('click', () => runScript('script3.sh', 'ts密钥远程更新成功等待下载替换'));
 }
 
+const execBtnAll = document.getElementById('execBtnAll');
+if (execBtnAll) {
+    execBtnAll.addEventListener('click', () => runScript('script.sh', '一键配置执行成功'));
+}
+
+const execBtnAll2 = document.getElementById('execBtnAll2');
+if (execBtnAll2) {
+    execBtnAll2.addEventListener('click', () => runScript('script2.sh', '一键配置(scene版)执行成功'));
+}
