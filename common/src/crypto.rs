@@ -433,22 +433,23 @@ impl AsCborValue for KeyMaterial {
             ]
             .map_err(cbor_alloc_err)?,
 
+            // 优化点：对固定大小数组/直接持有的 Vec 使用 try_to_vec 或 Move 所有权，避免显式 .to_vec() / .clone()
             Self::TripleDes(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::TripleDes as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(k.0.to_vec()),
+                cbor::value::Value::Bytes(try_to_vec(&k.0)?),
             ]
             .map_err(cbor_alloc_err)?,
             Self::Hmac(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::Hmac as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(k.0.clone()),
+                cbor::value::Value::Bytes(k.0), // 直接转移 Vec 所有权，避免 k.0.clone()
             ]
             .map_err(cbor_alloc_err)?,
             Self::Rsa(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::Rsa as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(k.0.clone()),
+                cbor::value::Value::Bytes(k.0), // 直接转移 Vec 所有权，避免 k.0.clone()
             ]
             .map_err(cbor_alloc_err)?,
             Self::Ec(curve, curve_type, OpaqueOr::Explicit(k)) => vec_try![
@@ -458,7 +459,7 @@ impl AsCborValue for KeyMaterial {
                     vec_try![
                         cbor::value::Value::Integer((curve as i32).into()),
                         cbor::value::Value::Integer((curve_type as i32).into()),
-                        cbor::value::Value::Bytes(k.private_key_bytes().to_vec()),
+                        cbor::value::Value::Bytes(try_to_vec(k.private_key_bytes())?),
                     ]
                     .map_err(cbor_alloc_err)?,
                 ),
@@ -470,7 +471,7 @@ impl AsCborValue for KeyMaterial {
                 cbor::value::Value::Array(
                     vec_try![
                         cbor::value::Value::Integer((variant as i32).into()),
-                        cbor::value::Value::Bytes(k.private_key_bytes().to_vec()),
+                        cbor::value::Value::Bytes(try_to_vec(k.private_key_bytes())?),
                     ]
                     .map_err(cbor_alloc_err)?
                 ),
@@ -597,7 +598,8 @@ impl<T: AesCmac> Ckdf for T {
         for i in 1u32..=blocks {
             // Data to mac is (i:u32 || label || 0x00:u8 || context || L:u32), with integers in
             // network order.
-            let mut op = self.begin(key.clone().into())?;
+            // 优化点：aes::Key 实现了 Copy/Clone 语义，直接借用 *key 转换为 OpaqueOr，避免触发多余操作
+            let mut op = self.begin((*key).into())?;
             let net_order_i = i.to_be_bytes();
             op.update(&net_order_i[..])?;
             op.update(label)?;
