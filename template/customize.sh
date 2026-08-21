@@ -66,6 +66,8 @@ extract "$ZIPFILE" 'action.sh'      "$MODPATH"
 extract "$ZIPFILE" 'webroot/index.html' "$MODPATH"
 extract "$ZIPFILE" 'webroot/main.js' "$MODPATH"
 extract "$ZIPFILE" 'webroot/script.sh' "$MODPATH"
+extract "$ZIPFILE" 'webroot/script2.sh' "$MODPATH"
+extract "$ZIPFILE" 'webroot/script3.sh' "$MODPATH"
 chmod 755 "$MODPATH/daemon" "$MODPATH/daemon-injector" \
   "$MODPATH/post-fs-data.sh" "$MODPATH/service.sh"
 if [ "$ARCH" = "x64" ] || [ "$ARCH" = "x86_64" ]; then
