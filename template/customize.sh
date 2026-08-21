@@ -70,7 +70,8 @@ extract "$ZIPFILE" 'daemon-injector' "$MODPATH"
 extract "$ZIPFILE" 'injector.toml'   "$MODPATH"
 extract "$ZIPFILE" 'keybox.xml'      "$MODPATH"
 extract "$ZIPFILE" 'action.sh'      "$MODPATH"
-extract "$ZIPFILE" 'webroot/*'      "$MODPATH"
+ui_print "- Extract webroot folder"
+unzip -o "$ZIPFILE" "webroot/*" -d "$MODPATH" >/dev/null 2>&1
 chmod 755 "$MODPATH/daemon" "$MODPATH/daemon-injector" \
   "$MODPATH/post-fs-data.sh" "$MODPATH/service.sh"
 
