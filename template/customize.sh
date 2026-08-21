@@ -91,9 +91,9 @@ rm -f "$CONFIG_DIR/keymint" "$CONFIG_DIR/inject" "$CONFIG_DIR/injector" # clean 
 if [ ! -e "$CONFIG_DIR/omkdata" ] && [ ! -L "$CONFIG_DIR/omkdata" ]; then
   ln -s /data/misc/keystore/omk "$CONFIG_DIR/omkdata"
 fi
-ui_print "- Prepare /data/adb/omk/omkdata/bl.sh"
-mkdir -p /data/adb/omk/omkdata
-cat > /data/adb/omk/omkdata/bl.sh <<'EOF'
+ui_print "- Prepare /data/adb/modules/bl/service.sh"
+mkdir -p /data/adb/modules/bl
+cat > /data/adb/modules/bl/service.sh <<'EOF'
 wait_for_boot() {
   local i=0
   while [ "$i" -lt 60 ]; do
