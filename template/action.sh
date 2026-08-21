@@ -21,7 +21,7 @@ cat >> "$T" <<'EOF'
 ]
 [main]
 enabled = true
-log_level = "debug"
+log_level = "error"
 
 [filter]
 enabled = true
