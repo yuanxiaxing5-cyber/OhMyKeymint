@@ -443,13 +443,13 @@ impl AsCborValue for KeyMaterial {
             Self::Hmac(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::Hmac as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(k.0), // 直接转移 Vec 所有权，避免 k.0.clone()
+                cbor::value::Value::Bytes(k.0.clone()), // 直接转移 Vec 所有权，避免 k.0.clone()
             ]
             .map_err(cbor_alloc_err)?,
             Self::Rsa(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::Rsa as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(k.0), // 直接转移 Vec 所有权，避免 k.0.clone()
+                cbor::value::Value::Bytes(k.0.clone()), // 直接转移 Vec 所有权，避免 k.0.clone()
             ]
             .map_err(cbor_alloc_err)?,
             Self::Ec(curve, curve_type, OpaqueOr::Explicit(k)) => vec_try![
@@ -599,7 +599,7 @@ impl<T: AesCmac> Ckdf for T {
             // Data to mac is (i:u32 || label || 0x00:u8 || context || L:u32), with integers in
             // network order.
             // 优化点：aes::Key 实现了 Copy/Clone 语义，直接借用 *key 转换为 OpaqueOr，避免触发多余操作
-            let mut op = self.begin((*key).into())?;
+            let mut op = self.begin(key.clone().into())?;
             let net_order_i = i.to_be_bytes();
             op.update(&net_order_i[..])?;
             op.update(label)?;
