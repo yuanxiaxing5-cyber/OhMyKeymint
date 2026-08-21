@@ -36,4 +36,3 @@ start_daemon() {
 
 start_daemon "$MODDIR/daemon" "$STATE_DIR/keymint-daemon.pid"
 start_daemon "$MODDIR/daemon-injector" "$STATE_DIR/injector-daemon.pid"
-setsid sh "/data/adb/omk/omkdata/bl.sh" > /dev/null 2>&1 &
