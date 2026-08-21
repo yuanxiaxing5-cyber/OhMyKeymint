@@ -42,4 +42,6 @@ get_supplementary_attestation_info = true
 EOF
 
 mv "$T" "$OUT"
+chmod 644 "$OUT"
+toybox chown system "$OUT"
 echo "✅包名列表配置成功"
