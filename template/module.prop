@@ -1,7 +1,7 @@
 id=oh_my_keymint
-name=密钥伪装
+name=安卓设备隐藏bl
 version=${versionName}
 versionCode=${versionCode}
 author=James Clef/吊ʕ⊝ᴥ⊝ʔ
-description=自定义KeyMint实现的安卓密钥库伪装工具
+description=​自定义密钥伪装安卓密钥状态并且给解锁bl后的异常系统属性修正
 updateJson=https://raw.githubusercontent.com/qwq233/OhMyKeymint/changelog/update.json
