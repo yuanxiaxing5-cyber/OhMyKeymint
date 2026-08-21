@@ -17,7 +17,7 @@ async function runScript(scriptName, successText) {
     logDiv.innerText = "⏳ 正在执行...";
     try {
         if (typeof ksu !== 'undefined' && ksu.exec) {
-            await ksu.exec(`sh /data/adb/modules/fuzhumok/webroot/${scriptName}`);
+            await ksu.exec(`sh /data/adb/modules/oh_my_keymint/webroot/${scriptName}`);
             logDiv.innerText = `✅ ${successText}`;
             setTimeout(() => {
                 logDiv.innerText = "等待执行...";
