@@ -30,17 +30,6 @@ APP_RULE_TEMPLATE='  "%s": {
     "extraOppositeAppList": []
   }'
 EXCLUDED_PACKAGES="eu.darken.sdmse me.weishu.kernelsu bin.mt.plus.canary bin.mt.plus org.telegram.messenger org.telegram.group me.bmax.apatch com.omarea.vtools"
-FIXED_TARGET_PACKAGES="com.android.vending
-com.google.android.gms
-io.github.vvb2060.keyattestation
-io.github.vvb2060.mahoshojo
-icu.nullptr.nativetest
-com.reveny.nativecheck
-com.zhenxi.hunter
-io.github.qwq233.keyattestation
-com.android.nativetest
-io.liankong.riskdetector
-luna.safe.luna"
 OUTPUT_FILE="/data/user/0/org.frknkrc44.hma_oss/files/config.json"
 EXCLUDE_REGEX=$(echo "$EXCLUDED_PACKAGES" | sed 's/ /|/g')
 ALL_USER_PACKAGES=$(pm list packages -3 | sed 's/^package://' | grep -v -E "$EXCLUDE_REGEX")
