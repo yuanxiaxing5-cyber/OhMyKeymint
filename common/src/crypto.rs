@@ -15,7 +15,6 @@
 //! Abstractions and related types for accessing cryptographic primitives
 //! and related functionality.
 
-// derive(N) generates a method that is missing a docstring.
 #![allow(missing_docs)]
 
 use crate::{km_err, vec_try, vec_try_with_capacity, Error, FallibleAllocExt};
@@ -42,14 +41,9 @@ pub mod rsa;
 mod traits;
 pub use traits::*;
 
-/// Size of SHA-256 output in bytes.
 pub const SHA256_DIGEST_LEN: usize = 32;
-
-/// Length of an AES-256 key in bytes.
 pub const AES_256_KEY_LENGTH: usize = 32;
 
-/// Function that mimics `slice.to_vec()` but which detects allocation failures.  This version emits
-/// `CborError` (instead of the `Error` that `crate::try_to_vec` emits).
 #[inline]
 pub fn try_to_vec<T: Clone>(s: &[T]) -> Result<Vec<T>, CborError> {
     let mut v = vec_try_with_capacity!(s.len()).map_err(|_e| CborError::AllocationFailed)?;
@@ -57,7 +51,6 @@ pub fn try_to_vec<T: Clone>(s: &[T]) -> Result<Vec<T>, CborError> {
     Ok(v)
 }
 
-/// Milliseconds since an arbitrary epoch.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MillisecondsSinceEpoch(pub i64);
@@ -70,59 +63,38 @@ impl From<MillisecondsSinceEpoch> for kmr_wire::secureclock::Timestamp {
     }
 }
 
-/// Information for key generation.
 #[derive(Clone)]
 pub enum KeyGenInfo {
-    /// Generate an AES key of the given size.
     Aes(aes::Variant),
-    /// Generate a 3-DES key.
     TripleDes,
-    /// Generate an HMAC key of the given size.
     Hmac(KeySizeInBits),
-    /// Generate an RSA keypair of the given size using the given exponent.
     Rsa(KeySizeInBits, RsaExponent),
-    /// Generate a NIST EC keypair using the given curve.
     NistEc(ec::NistCurve),
-    /// Generate an Ed25519 keypair.
     Ed25519,
-    /// Generate an X25519 keypair.
     X25519,
-    /// Generate an ML-DSA keypair.
     MlDsa(MlDsaVariant),
 }
 
-/// Type of elliptic curve.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, AsCborValue, N)]
 #[repr(i32)]
 pub enum CurveType {
-    /// NIST curve.
     Nist = 0,
-    /// EdDSA curve.
     EdDsa = 1,
-    /// XDH curve.
     Xdh = 2,
 }
 
-/// Raw key material used for deriving other keys.
 #[derive(PartialEq, Eq, ZeroizeOnDrop)]
 pub struct RawKeyMaterial(pub Vec<u8>);
 
-/// Opaque key material whose structure is only known/accessible to the crypto implementation.
-/// The contents of this are assumed to be encrypted (and so are not `ZeroizeOnDrop`).
 #[derive(Clone, PartialEq, Eq)]
 pub struct OpaqueKeyMaterial(pub Vec<u8>);
 
-/// Wrapper that holds either a key of explicit type `T`, or an opaque blob of key material.
 #[derive(Clone, PartialEq, Eq)]
 pub enum OpaqueOr<T> {
-    /// Explicit key material of the given type, available in plaintext.
     Explicit(T),
-    /// Opaque key material, either encrypted or an opaque key handle.
     Opaque(OpaqueKeyMaterial),
 }
 
-/// Macro to provide `impl From<SomeKey> for OpaqueOr<SomeKey>`, so that explicit key material
-/// automatically converts into the equivalent `OpaqueOr` variant.
 macro_rules! opaque_from_key {
     { $t:ty } => {
         impl From<$t> for OpaqueOr<$t> {
@@ -146,25 +118,16 @@ impl<T> From<OpaqueKeyMaterial> for OpaqueOr<T> {
     }
 }
 
-/// Key material that is held in plaintext (or is alternatively an opaque blob that is only
-/// known/accessible to the crypto implementation, indicated by the `OpaqueOr::Opaque` variant).
 #[derive(Clone, PartialEq, Eq)]
 pub enum KeyMaterial {
-    /// AES symmetric key.
     Aes(OpaqueOr<aes::Key>),
-    /// 3-DES symmetric key.
     TripleDes(OpaqueOr<des::Key>),
-    /// HMAC symmetric key.
     Hmac(OpaqueOr<hmac::Key>),
-    /// RSA asymmetric key.
     Rsa(OpaqueOr<rsa::Key>),
-    /// Elliptic curve asymmetric key.
     Ec(EcCurve, CurveType, OpaqueOr<ec::Key>),
-    /// ML-DSA asymmetric key.
     MlDsa(MlDsaVariant, OpaqueOr<mldsa::Key>),
 }
 
-/// Macro that extracts the explicit key from an [`OpaqueOr`] wrapper.
 #[macro_export]
 macro_rules! explicit {
     { $key:expr } => {
@@ -177,7 +140,6 @@ macro_rules! explicit {
 }
 
 impl KeyMaterial {
-    /// Indicate whether the key material is for an asymmetric key.
     pub fn is_asymmetric(&self) -> bool {
         match self {
             Self::Aes(_) | Self::TripleDes(_) | Self::Hmac(_) => false,
@@ -185,13 +147,10 @@ impl KeyMaterial {
         }
     }
 
-    /// Indicate whether the key material is for a symmetric key.
     pub fn is_symmetric(&self) -> bool {
         !self.is_asymmetric()
     }
 
-    /// Return the public key information as an ASN.1 DER encodable `SubjectPublicKeyInfo`, as
-    /// described in RFC 5280 section 4.1.
     pub fn subject_public_key_info<'a>(
         &'a self,
         buf: &'a mut Vec<u8>,
@@ -210,7 +169,6 @@ impl KeyMaterial {
     }
 }
 
-/// Manual implementation of [`Debug`] that skips emitting plaintext key material.
 impl core::fmt::Debug for KeyMaterial {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -474,19 +432,11 @@ impl AsCborValue for KeyMaterial {
     fn cddl_schema() -> Option<String> {
         Some(format!(
             "&(
-  ; For each variant the `bool` second entry indicates whether the bstr for the key material
-  ; is opaque (true), or explicit (false).
   [{}, bool, bstr], ; {}
   [{}, bool, bstr], ; {}
   [{}, bool, bstr], ; {}
-  ; An explicit RSA key is in the form of an ASN.1 DER encoding of a PKCS#1 `RSAPrivateKey`
-  ; structure, as specified by RFC 3447 sections A.1.2 and 3.2.
   [{}, bool, bstr], ; {}
-  ; An explicit EC key for a NIST curve is in the form of an ASN.1 DER encoding of a
-  ; `ECPrivateKey` structure, as specified by RFC 5915 section 3.
-  ; An explicit EC key for curve 25519 is the raw key bytes.
   [{}, bool, [EcCurve, CurveType, bstr]], ; {}
-  ; An explicit ML-DSA key is the 32-byte seed value.
   [{}, bool, [MlDsaVariant, bstr]], ; {}
 )",
             Algorithm::Aes as i32,
@@ -505,26 +455,20 @@ impl AsCborValue for KeyMaterial {
     }
 }
 
-/// Direction of cipher operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SymmetricOperation {
-    /// Perform encryption.
     Encrypt,
-    /// Perform decryption.
     Decrypt,
 }
 
-/// Salt value used in HKDF if none provided.
 const HKDF_EMPTY_SALT: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
 
-/// Convenience wrapper to perform one-shot HMAC-SHA256.
 pub fn hmac_sha256(hmac: &dyn Hmac, key: &[u8], data: &[u8]) -> Result<Vec<u8>, Error> {
     let mut op = hmac.begin(hmac::Key(crate::try_to_vec(key)?).into(), Digest::Sha256)?;
     op.update(data)?;
     op.finish()
 }
 
-/// Default implementation of [`Hkdf`] for any type implementing [`Hmac`].
 impl<T: Hmac> Hkdf for T {
     fn extract(&self, mut salt: &[u8], ikm: &[u8]) -> Result<OpaqueOr<hmac::Key>, Error> {
         if salt.is_empty() {
@@ -562,7 +506,6 @@ impl<T: Hmac> Hkdf for T {
     }
 }
 
-/// Default implementation of [`Ckdf`] for any type implementing [`AesCmac`].
 impl<T: AesCmac> Ckdf for T {
     fn ckdf(
         &self,
@@ -573,7 +516,7 @@ impl<T: AesCmac> Ckdf for T {
     ) -> Result<Vec<u8>, Error> {
         let key = explicit!(key)?;
         let blocks: u32 = out_len.div_ceil(aes::BLOCK_SIZE) as u32;
-        let l = (out_len * 8) as u32; // in bits
+        let l = (out_len * 8) as u32;
         let net_order_l = l.to_be_bytes();
         let zero_byte: [u8; 1] = [0];
         let mut output = vec_try![0; out_len]?;
