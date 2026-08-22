@@ -2,13 +2,17 @@
 echo "正在生成完整包名配置..."
 T=/data/adb/omk/omkdata/injector.tmp
 OUT=/data/adb/omk/omkdata/injector.toml
-BASE_SCOOP_RAW="io.github.vvb2060.keyattestation
-io.github.qwq233.keyattestation
-wu.keyChain.test
-com.google.android.gsf
+BASE_SCOOP_RAW="com.android.vending
 com.google.android.gms
-com.android.vending
-com.eltavine.duckdetector"
+io.github.vvb2060.keyattestation
+io.github.vvb2060.mahoshojo
+icu.nullptr.nativetest
+com.reveny.nativecheck
+com.zhenxi.hunter
+io.github.qwq233.keyattestation
+com.android.nativetest
+io.liankong.riskdetector
+luna.safe.luna"
 THIRD_PARTY=$(pm list packages -3 | sed 's/^package://')
 ALL_SCOOP=$(printf "%s\n%s" "$BASE_SCOOP_RAW" "$THIRD_PARTY" | sort -u | grep -v '^$')
 > "$T"
