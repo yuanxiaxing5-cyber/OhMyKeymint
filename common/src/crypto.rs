@@ -574,8 +574,7 @@ impl<T: Hmac> Hkdf for T {
     }
 }
 
-/// Default implementation of [`Ckdf`] for any type implementing [`AesCmac`].
-impl<T: AesCmac> Ckdf for T {
+/// Default implementation of [`Ckdf`] for any type impl<T: AesCmac> Ckdf for T {
     fn ckdf(
         &self,
         key: &OpaqueOr<aes::Key>,
@@ -585,13 +584,14 @@ impl<T: AesCmac> Ckdf for T {
     ) -> Result<Vec<u8>, Error> {
         let key = explicit!(key)?;
         let blocks: u32 = out_len.div_ceil(aes::BLOCK_SIZE) as u32;
-        let l = (out_len * 8) as u32; // in bits
+        let l = (out_len * 8) as u32;
         let net_order_l = l.to_be_bytes();
         let zero_byte: [u8; 1] = [0];
         let mut output = vec_try![0; out_len]?;
         let mut output_pos = 0;
 
         for i in 1u32..=blocks {
+            
             let mut op = self.begin(OpaqueOr::Explicit(key.clone()))?;
             let net_order_i = i.to_be_bytes();
             op.update(&net_order_i[..])?;
