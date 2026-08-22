@@ -37,42 +37,32 @@ pub mod sdd_mem;
 #[cfg(test)]
 mod tests;
 
-/// Nonce value of all zeroes used in AES-GCM key encryption.
 const ZERO_NONCE: [u8; 12] = [0u8; 12];
 
-/// Identifier for secure deletion secret storage slot.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, AsCborValue)]
 pub struct SecureDeletionSlot(pub u32);
 
-/// Keyblob format version.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, AsCborValue)]
 pub enum Version {
-    /// Version 1.
     V1 = 0,
 }
 
-/// Encrypted key material, as translated to/from CBOR.
 #[derive(Clone, Debug)]
 pub enum EncryptedKeyBlob {
-    /// Version 1 key blob.
     V1(EncryptedKeyBlobV1),
-    // Future versions go here...
 }
 
 impl EncryptedKeyBlob {
-    /// Construct from serialized data, mapping failure to `ErrorCode::InvalidKeyBlob`.
     pub fn new(data: &[u8]) -> Result<Self, Error> {
         Self::from_slice(data)
             .map_err(|e| km_err!(InvalidKeyBlob, "failed to parse keyblob: {:?}", e))
     }
-    /// Return the secure deletion slot for the key, if present.
     pub fn secure_deletion_slot(&self) -> Option<SecureDeletionSlot> {
         match self {
             EncryptedKeyBlob::V1(blob) => blob.secure_deletion_slot,
         }
     }
-    /// Return the additional KEK context for the key.
     pub fn kek_context(&self) -> &[u8] {
         match self {
             EncryptedKeyBlob::V1(blob) => &blob.kek_context,
@@ -114,29 +104,16 @@ impl AsCborValue for EncryptedKeyBlob {
     }
 }
 
-/// Encrypted key material, as translated to/from CBOR.
 #[derive(Clone, Debug, AsCborValue)]
 pub struct EncryptedKeyBlobV1 {
-    /// Characteristics associated with the key.
     pub characteristics: Vec<KeyCharacteristics>,
-    /// Nonce used for the key derivation.
     pub key_derivation_input: [u8; 32],
-    /// Opaque context data needed for root KEK retrieval.
     pub kek_context: Vec<u8>,
-    /// Key material encrypted with AES-GCM with:
-    ///  - key produced by [`derive_kek`]
-    ///  - plaintext is the CBOR-serialization of [`crypto::KeyMaterial`]
-    ///  - nonce is all zeroes
-    ///  - no additional data.
     pub encrypted_key_material: coset::CoseEncrypt0,
-    /// Identifier for a slot in secure storage that holds additional secret values
-    /// that are required to derive the key encryption key.
     pub secure_deletion_slot: Option<SecureDeletionSlot>,
 }
 
-/// Trait to handle keyblobs in a format from a previous implementation.
 pub trait LegacyKeyHandler: Send {
-    /// Indicate whether a keyblob is a legacy key format.
     fn is_legacy_key(&self, keyblob: &[u8], params: &[KeyParam], root_of_trust: &BootInfo) -> bool {
         match self.convert_legacy_key(
             keyblob,
@@ -152,7 +129,6 @@ pub trait LegacyKeyHandler: Send {
         }
     }
 
-    /// Convert a potentially-legacy key into current format.
     fn convert_legacy_key(
         &self,
         keyblob: &[u8],
@@ -161,18 +137,15 @@ pub trait LegacyKeyHandler: Send {
         sec_level: SecurityLevel,
     ) -> Result<PlaintextKeyBlob, Error>;
 
-    /// Delete a potentially-legacy keyblob.
     fn delete_legacy_key(&mut self, keyblob: &[u8]) -> Result<(), Error>;
 }
 
-/// Secret data that can be mixed into the key derivation inputs for keys.
 #[derive(Clone, PartialEq, Eq, AsCborValue, ZeroizeOnDrop)]
 pub struct SecureDeletionData {
     pub factory_reset_secret: [u8; 32],
     pub secure_deletion_secret: [u8; 16],
 }
 
-/// Indication of what kind of key operation requires a secure deletion slot.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SlotPurpose {
     KeyGeneration,
@@ -180,7 +153,6 @@ pub enum SlotPurpose {
     KeyUpgrade,
 }
 
-/// Manager for the mapping between secure deletion slots and instances.
 pub trait SecureDeletionSecretManager: Send {
     fn get_or_create_factory_reset_secret(
         &mut self,
@@ -202,7 +174,6 @@ pub trait SecureDeletionSecretManager: Send {
     fn delete_all(&mut self);
 }
 
-/// RAII class to hold a secure deletion slot.
 struct SlotHolder<'a> {
     mgr: &'a mut dyn SecureDeletionSecretManager,
     slot: Option<SecureDeletionSlot>,
@@ -239,7 +210,6 @@ impl<'a> SlotHolder<'a> {
     }
 }
 
-/// Root of trust information for binding into keyblobs.
 #[derive(Debug, Clone, AsCborValue)]
 pub struct RootOfTrustInfo {
     pub verified_boot_key: Vec<u8>,
@@ -247,7 +217,6 @@ pub struct RootOfTrustInfo {
     pub verified_boot_state: VerifiedBootState,
 }
 
-/// Derive a key encryption key used for key blob encryption.
 pub fn derive_kek(
     kdf: &dyn crypto::Hkdf,
     root_key: &crypto::OpaqueOr<crypto::hmac::Key>,
@@ -265,7 +234,6 @@ pub fn derive_kek(
         + hidden_data.len()
         + sdd_data.as_ref().map_or(0, |s| s.len());
 
-    // 修复：使用 crate 自带的稳定宏 vec_try_with_capacity! 替代 std 尚未稳化的 Vec::try_with_capacity
     let mut info = vec_try_with_capacity!(total_len)?;
     info.extend_from_slice(key_derivation_input);
     info.extend_from_slice(&chars_data);
@@ -282,7 +250,6 @@ pub fn derive_kek(
     }
 }
 
-/// Plaintext key blob.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlaintextKeyBlob {
     pub characteristics: Vec<KeyCharacteristics>,
@@ -307,7 +274,6 @@ impl PlaintextKeyBlob {
     }
 }
 
-/// Consume a plaintext keyblob and emit an encrypted version.
 #[allow(clippy::too_many_arguments)]
 pub fn encrypt(
     sec_level: SecurityLevel,
@@ -390,7 +356,6 @@ pub fn encrypt(
     }))
 }
 
-/// Consume an encrypted keyblob and emit an decrypted version.
 pub fn decrypt(
     sdd_mgr: Option<&dyn SecureDeletionSecretManager>,
     aes: &dyn crypto::Aes,
