@@ -14,20 +14,6 @@ import shutil
 import subprocess
 import zipfile
 
-import subprocess
-import shutil
-
-fn strip_binary(bin_path: str):
-    """Attempt to strip symbol tables to reduce binary size for release builds."""
-    strip_tool = shutil.which("llvm-strip") or shutil.which("aarch64-linux-android-strip")
-    if strip_tool:
-        try:
-            subprocess.run([strip_tool, "--strip-unneeded", bin_path], check=True)
-            print(f"[+] Stripped release symbols for: {bin_path}")
-        except Exception as e:
-            print(f"[!] Warning: failed to strip {bin_path}: {e}")
-
-
 try:
     import tomllib as toml
 except ModuleNotFoundError:
@@ -85,6 +71,19 @@ MODULE_TEXT_FILES = (
     "META-INF/com/google/android/update-binary",
     "META-INF/com/google/android/updater-script",
 )
+
+
+def strip_binary(bin_path: Path) -> None:
+    """Attempt to strip symbol tables to reduce binary size for release builds."""
+    if not bin_path.exists():
+        return
+    strip_tool = shutil.which("llvm-strip") or shutil.which("aarch64-linux-android-strip")
+    if strip_tool:
+        try:
+            subprocess.run([strip_tool, "--strip-unneeded", os.fspath(bin_path)], check=True)
+            print(f"[+] Stripped release symbols for: {bin_path}")
+        except Exception as e:
+            print(f"[!] Warning: failed to strip {bin_path}: {e}")
 
 
 def run(cmd: list[str], *, env: dict[str, str] | None = None) -> None:
@@ -160,6 +159,10 @@ def build_binary(
     binary_path = TARGET_ROOT / target / build_type / bin_name
     if not binary_path.exists():
         raise FileNotFoundError(f"Built binary not found at {binary_path}")
+
+    if release:
+        strip_binary(binary_path)
+
     return binary_path
 
 
@@ -296,7 +299,6 @@ def build_package_for_abi(
 ) -> Path:
     target = ABI_TO_TARGET[abi]
     stage_dir = TARGET_ROOT / "temp" / abi
-    # Kept for compatibility with old invocations; plain Cargo uses .cargo/config.toml.
     _ = platform
     if stage_dir.exists():
         shutil.rmtree(stage_dir)
