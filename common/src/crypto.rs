@@ -192,6 +192,18 @@ impl KeyMaterial {
 
     /// Return the public key information as an ASN.1 DER encodable `SubjectPublicKeyInfo`, as
     /// described in RFC 5280 section 4.1.
+    ///
+    /// ```asn1
+    /// SubjectPublicKeyInfo  ::=  SEQUENCE  {
+    ///    algorithm            AlgorithmIdentifier,
+    ///    subjectPublicKey     BIT STRING  }
+    ///
+    /// AlgorithmIdentifier  ::=  SEQUENCE  {
+    ///    algorithm               OBJECT IDENTIFIER,
+    ///    parameters              ANY DEFINED BY algorithm OPTIONAL  }
+    /// ```
+    ///
+    /// Returns `None` for a symmetric key.
     pub fn subject_public_key_info<'a>(
         &'a self,
         buf: &'a mut Vec<u8>,
@@ -424,19 +436,19 @@ impl AsCborValue for KeyMaterial {
             Self::TripleDes(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::TripleDes as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(try_to_vec(&k.0)?),
+                cbor::value::Value::Bytes(k.0.to_vec()),
             ]
             .map_err(cbor_alloc_err)?,
             Self::Hmac(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::Hmac as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(try_to_vec(&k.0)?), // 使用 try_to_vec 防 panic 并绕过 Drop 约束
+                cbor::value::Value::Bytes(k.0.clone()),
             ]
             .map_err(cbor_alloc_err)?,
             Self::Rsa(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::Rsa as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(try_to_vec(&k.0)?), // 使用 try_to_vec 防 panic 并绕过 Drop 约束
+                cbor::value::Value::Bytes(k.0.clone()),
             ]
             .map_err(cbor_alloc_err)?,
             Self::Ec(curve, curve_type, OpaqueOr::Explicit(k)) => vec_try![
@@ -446,7 +458,7 @@ impl AsCborValue for KeyMaterial {
                     vec_try![
                         cbor::value::Value::Integer((curve as i32).into()),
                         cbor::value::Value::Integer((curve_type as i32).into()),
-                        cbor::value::Value::Bytes(try_to_vec(k.private_key_bytes())?),
+                        cbor::value::Value::Bytes(k.private_key_bytes().to_vec()),
                     ]
                     .map_err(cbor_alloc_err)?,
                 ),
@@ -458,7 +470,7 @@ impl AsCborValue for KeyMaterial {
                 cbor::value::Value::Array(
                     vec_try![
                         cbor::value::Value::Integer((variant as i32).into()),
-                        cbor::value::Value::Bytes(try_to_vec(k.private_key_bytes())?),
+                        cbor::value::Value::Bytes(k.private_key_bytes().to_vec()),
                     ]
                     .map_err(cbor_alloc_err)?
                 ),
@@ -572,21 +584,16 @@ impl<T: AesCmac> Ckdf for T {
         out_len: usize,
     ) -> Result<Vec<u8>, Error> {
         let key = explicit!(key)?;
-        // Note: the variables i and l correspond to i and L in the standard.  See page 12 of
-        // http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-108.pdf.
-
         let blocks: u32 = out_len.div_ceil(aes::BLOCK_SIZE) as u32;
         let l = (out_len * 8) as u32; // in bits
         let net_order_l = l.to_be_bytes();
         let zero_byte: [u8; 1] = [0];
         let mut output = vec_try![0; out_len]?;
         let mut output_pos = 0;
-
-        for i in 1u32..=blocks {
-            // Data to mac is (i:u32 || label || 0x00:u8 || context || L:u32), with integers in
-            // network order.
-            let mut op = self.begin(key.clone().into())?;
-            let net_order_i = i.to_be_bytes();
+let key_ref = &OpaqueOr::Explicit(key);
+for i in 1u32..=blocks {
+    let mut op = self.begin(key_ref.clone().into())?;
+    let net_order_i = i.to_be_bytes();
             op.update(&net_order_i[..])?;
             op.update(label)?;
             op.update(&zero_byte[..])?;
@@ -599,7 +606,7 @@ impl<T: AesCmac> Ckdf for T {
             let copy_len = core::cmp::min(data.len(), output.len() - output_pos);
             output[output_pos..output_pos + copy_len].clone_from_slice(&data[..copy_len]);
             output_pos += copy_len;
-        }
+}
         if output_pos != output.len() {
             return Err(km_err!(
                 InvalidArgument,
