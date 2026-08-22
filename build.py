@@ -14,6 +14,20 @@ import shutil
 import subprocess
 import zipfile
 
+import subprocess
+import shutil
+
+fn strip_binary(bin_path: str):
+    """Attempt to strip symbol tables to reduce binary size for release builds."""
+    strip_tool = shutil.which("llvm-strip") or shutil.which("aarch64-linux-android-strip")
+    if strip_tool:
+        try:
+            subprocess.run([strip_tool, "--strip-unneeded", bin_path], check=True)
+            print(f"[+] Stripped release symbols for: {bin_path}")
+        except Exception as e:
+            print(f"[!] Warning: failed to strip {bin_path}: {e}")
+
+
 try:
     import tomllib as toml
 except ModuleNotFoundError:
