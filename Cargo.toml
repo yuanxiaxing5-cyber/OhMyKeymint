@@ -51,14 +51,13 @@ multi_log = "0.1.2"
 incremental = true
 
 [profile.release]
-opt-level = 3
-lto = true          # Enable link-time optimization
-codegen-units = 1   # Reduce number of codegen units to increase optimizations
-panic = 'abort'     # Abort on panic
-strip = true        # Strip symbols from binary
-debug = 0           # Disable debug info
-incremental = true
-split-debuginfo = "packed"  # Pack debug info for reduced space
+opt-level = 3               # 开启最高级别 LLVM 代码优化
+lto = "thin"                # 开启薄链接时优化 (ThinLTO)，兼顾编译速度与运行时性能
+codegen-units = 1         # 减少编译单元数，增强跨函数优化能力
+panic = "abort"             # Panic 时直接终止进程，大幅减少崩溃清理代码体积
+strip = "symbols"           # 剥离无用的调试符号
+debug = 0                  # 关闭调试信息生成，降低编译产物体积
+incremental = false        # Release 模式下关闭增量编译以获得更纯净的体积优化
 
 [workspace]
 members = [
@@ -91,11 +90,3 @@ cargo-husky = { version = "1.5.0", default-features = false, features = ["user-h
 ciborium = "0.2.2"
 rcgen = "0.14.8"
 tempfile = "3.27.0"
-
-
-[profile.release]
-opt-level = 3          # 开启最高级别 LLVM 代码优化
-lto = "thin"           # 开启薄链接时优化，消除跨模块冗余代码
-codegen-units = 1      # 减少编译单元，最大化 LTO 优化效果
-panic = "abort"        # 未捕捉异常时直接 abort，大幅削减 Rust 运行时符号开销
-strip = "symbols"      # 自动从产物中裁掉无用调试符号
