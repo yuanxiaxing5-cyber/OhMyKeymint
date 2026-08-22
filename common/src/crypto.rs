@@ -192,18 +192,6 @@ impl KeyMaterial {
 
     /// Return the public key information as an ASN.1 DER encodable `SubjectPublicKeyInfo`, as
     /// described in RFC 5280 section 4.1.
-    ///
-    /// ```asn1
-    /// SubjectPublicKeyInfo  ::=  SEQUENCE  {
-    ///    algorithm            AlgorithmIdentifier,
-    ///    subjectPublicKey     BIT STRING  }
-    ///
-    /// AlgorithmIdentifier  ::=  SEQUENCE  {
-    ///    algorithm               OBJECT IDENTIFIER,
-    ///    parameters              ANY DEFINED BY algorithm OPTIONAL  }
-    /// ```
-    ///
-    /// Returns `None` for a symmetric key.
     pub fn subject_public_key_info<'a>(
         &'a self,
         buf: &'a mut Vec<u8>,
@@ -436,19 +424,19 @@ impl AsCborValue for KeyMaterial {
             Self::TripleDes(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::TripleDes as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(k.0.to_vec()),
+                cbor::value::Value::Bytes(try_to_vec(&k.0)?),
             ]
             .map_err(cbor_alloc_err)?,
             Self::Hmac(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::Hmac as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(k.0.clone()),
+                cbor::value::Value::Bytes(try_to_vec(&k.0)?),
             ]
             .map_err(cbor_alloc_err)?,
             Self::Rsa(OpaqueOr::Explicit(k)) => vec_try![
                 cbor::value::Value::Integer((Algorithm::Rsa as i32).into()),
                 cbor::value::Value::Bool(false),
-                cbor::value::Value::Bytes(k.0.clone()),
+                cbor::value::Value::Bytes(try_to_vec(&k.0)?),
             ]
             .map_err(cbor_alloc_err)?,
             Self::Ec(curve, curve_type, OpaqueOr::Explicit(k)) => vec_try![
@@ -458,7 +446,7 @@ impl AsCborValue for KeyMaterial {
                     vec_try![
                         cbor::value::Value::Integer((curve as i32).into()),
                         cbor::value::Value::Integer((curve_type as i32).into()),
-                        cbor::value::Value::Bytes(k.private_key_bytes().to_vec()),
+                        cbor::value::Value::Bytes(try_to_vec(k.private_key_bytes())?),
                     ]
                     .map_err(cbor_alloc_err)?,
                 ),
@@ -470,7 +458,7 @@ impl AsCborValue for KeyMaterial {
                 cbor::value::Value::Array(
                     vec_try![
                         cbor::value::Value::Integer((variant as i32).into()),
-                        cbor::value::Value::Bytes(k.private_key_bytes().to_vec()),
+                        cbor::value::Value::Bytes(try_to_vec(k.private_key_bytes())?),
                     ]
                     .map_err(cbor_alloc_err)?
                 ),
@@ -574,7 +562,8 @@ impl<T: Hmac> Hkdf for T {
     }
 }
 
-/// Default implementation of [`Ckdf`] for any type impl<T: AesCmac> Ckdf for T {
+/// Default implementation of [`Ckdf`] for any type implementing [`AesCmac`].
+impl<T: AesCmac> Ckdf for T {
     fn ckdf(
         &self,
         key: &OpaqueOr<aes::Key>,
@@ -584,14 +573,13 @@ impl<T: Hmac> Hkdf for T {
     ) -> Result<Vec<u8>, Error> {
         let key = explicit!(key)?;
         let blocks: u32 = out_len.div_ceil(aes::BLOCK_SIZE) as u32;
-        let l = (out_len * 8) as u32;
+        let l = (out_len * 8) as u32; // in bits
         let net_order_l = l.to_be_bytes();
         let zero_byte: [u8; 1] = [0];
         let mut output = vec_try![0; out_len]?;
         let mut output_pos = 0;
 
         for i in 1u32..=blocks {
-            
             let mut op = self.begin(OpaqueOr::Explicit(key.clone()))?;
             let net_order_i = i.to_be_bytes();
             op.update(&net_order_i[..])?;
