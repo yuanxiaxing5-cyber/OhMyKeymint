@@ -590,10 +590,10 @@ impl<T: AesCmac> Ckdf for T {
         let zero_byte: [u8; 1] = [0];
         let mut output = vec_try![0; out_len]?;
         let mut output_pos = 0;
-let key_ref = &OpaqueOr::Explicit(key);
-for i in 1u32..=blocks {
-    let mut op = self.begin(key_ref.clone().into())?;
-    let net_order_i = i.to_be_bytes();
+
+        for i in 1u32..=blocks {
+            let mut op = self.begin(OpaqueOr::Explicit(key.clone()))?;
+            let net_order_i = i.to_be_bytes();
             op.update(&net_order_i[..])?;
             op.update(label)?;
             op.update(&zero_byte[..])?;
@@ -606,7 +606,7 @@ for i in 1u32..=blocks {
             let copy_len = core::cmp::min(data.len(), output.len() - output_pos);
             output[output_pos..output_pos + copy_len].clone_from_slice(&data[..copy_len]);
             output_pos += copy_len;
-}
+        }
         if output_pos != output.len() {
             return Err(km_err!(
                 InvalidArgument,
