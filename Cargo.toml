@@ -91,3 +91,11 @@ cargo-husky = { version = "1.5.0", default-features = false, features = ["user-h
 ciborium = "0.2.2"
 rcgen = "0.14.8"
 tempfile = "3.27.0"
+
+
+[profile.release]
+opt-level = 3          # 开启最高级别 LLVM 代码优化
+lto = "thin"           # 开启薄链接时优化，消除跨模块冗余代码
+codegen-units = 1      # 减少编译单元，最大化 LTO 优化效果
+panic = "abort"        # 未捕捉异常时直接 abort，大幅削减 Rust 运行时符号开销
+strip = "symbols"      # 自动从产物中裁掉无用调试符号
