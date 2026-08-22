@@ -1,9 +1,16 @@
 #!/system/bin/sh
-echo "正在生成完整包名配置..."
-T=/data/adb/omk/omkdata/injector.tmp
-OUT=/data/adb/omk/omkdata/injector.toml
+echo "正在生成完整 injector.toml 配置..."
+
+DIR="/data/adb/omk/omkdata"
+mkdir -p "$DIR"
+
+T="$DIR/injector.tmp"
+OUT="$DIR/injector.toml"
+
 BASE_SCOOP_RAW="com.android.vending
 com.google.android.gms
+com.google.android.gsf
+com.eltavine.duckdetector
 io.github.vvb2060.keyattestation
 io.github.vvb2060.mahoshojo
 icu.nullptr.nativetest
@@ -13,16 +20,24 @@ io.github.qwq233.keyattestation
 com.android.nativetest
 io.liankong.riskdetector
 luna.safe.luna"
-THIRD_PARTY=$(pm list packages -3 | sed 's/^package://')
+
+THIRD_PARTY=$(pm list packages -3 2>/dev/null | sed 's/^package://')
 ALL_SCOOP=$(printf "%s\n%s" "$BASE_SCOOP_RAW" "$THIRD_PARTY" | sort -u | grep -v '^$')
-> "$T"
+
 cat > "$T" <<'EOF'
+# With `[filter].enabled = true`, a UID is intercepted when any package
+# sharing that UID is listed in `scoop`.
+# Filter deny settings still apply to every package resolved for the UID.
+
 version = 1
+
 scoop = [
 EOF
-echo "$ALL_SCOOP" | sed 's/^/    "/;s/$/",/' >> "$T"
+echo "$ALL_SCOOP" | sed 's/^/  "/;s/$/",/' >> "$T"
+
 cat >> "$T" <<'EOF'
 ]
+
 [main]
 enabled = true
 log_level = "error"
@@ -32,6 +47,7 @@ enabled = true
 deny_packages = []
 block_android_package = true
 allow_unknown_package = false
+
 [intercept]
 get_security_level = true
 get_key_entry = true
@@ -47,5 +63,6 @@ EOF
 
 mv "$T" "$OUT"
 chmod 644 "$OUT"
-toybox chown system "$OUT"
-echo "✅包名列表配置成功"
+chown system:system "$OUT" 2>/dev/null || chown 1000:1000 "$OUT"
+
+echo "✅ injector.toml 完整配置生成成功：$OUT"
