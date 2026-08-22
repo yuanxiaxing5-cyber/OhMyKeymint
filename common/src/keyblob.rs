@@ -15,8 +15,8 @@
 //! Key blob manipulation functionality.
 
 use crate::{
-    contains_tag_value, crypto, crypto::aes, km_err, tag, try_to_vec, vec_try,
-    vec_try_with_capacity, Error, FallibleAllocExt,
+    contains_tag_value, crypto, crypto::aes, km_err, tag, try_to_vec, vec_try, Error,
+    FallibleAllocExt,
 };
 use kmr_derive::AsCborValue;
 use kmr_wire::keymint::{
@@ -303,25 +303,20 @@ pub fn derive_kek(
     hidden: Vec<KeyParam>,
     sdd: Option<SecureDeletionData>,
 ) -> Result<crypto::OpaqueOr<crypto::aes::Key>, Error> {
-    // 优化：预先将各结构体序列化，计算总容量一次性分配，降低频繁 realloc 开销
-    let chars_vec = characteristics.into_vec()?;
-    let hidden_vec = hidden.into_vec()?;
-    let sdd_vec = match sdd {
-        Some(s) => Some(s.into_vec()?),
-        None => None,
-    };
+    let chars_data = characteristics.into_vec()?;
+    let hidden_data = hidden.into_vec()?;
+    let sdd_data = sdd.map(|s| s.into_vec()).transpose()?;
+    let total_len = key_derivation_input.len()
+        + chars_data.len()
+        + hidden_data.len()
+        + sdd_data.as_ref().map_or(0, |s| s.len());
 
-    let mut total_len = key_derivation_input.len() + chars_vec.len() + hidden_vec.len();
-    if let Some(ref s) = sdd_vec {
-        total_len += s.len();
-    }
-
-    let mut info = vec_try_with_capacity!(total_len)?;
+    let mut info = Vec::try_with_capacity(total_len)?;
     info.extend_from_slice(key_derivation_input);
-    info.extend_from_slice(&chars_vec);
-    info.extend_from_slice(&hidden_vec);
-    if let Some(s) = sdd_vec {
-        info.extend_from_slice(&s);
+    info.extend_from_slice(&chars_data);
+    info.extend_from_slice(&hidden_data);
+    if let Some(sdd_bytes) = sdd_data {
+        info.extend_from_slice(&sdd_bytes);
     }
 
     match root_key {
@@ -331,6 +326,7 @@ pub fn derive_kek(
         key @ crypto::OpaqueOr::Opaque(_) => kdf.expand_aes(key, &info, aes::Variant::Aes256),
     }
 }
+
 
 /// Plaintext key blob.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -439,12 +435,8 @@ pub fn encrypt(
                     crypto::SymmetricOperation::Encrypt,
                 )?;
                 op.update_aad(aad)?;
-                let part = op.update(pt)?;
-                let finish = op.finish()?;
-                // 优化：使用预预留容量，避免追加 finish() 产生的扩容
-                let mut ct = vec_try_with_capacity!(part.len() + finish.len())?;
-                ct.extend_from_slice(&part);
-                ct.try_extend_from_slice(&finish)?;
+                let mut ct = op.update(pt)?;
+                ct.try_extend_from_slice(&op.finish()?)?;
                 Ok(ct)
             },
         )?
@@ -506,17 +498,11 @@ pub fn decrypt(
         crypto::SymmetricOperation::Decrypt,
     )?;
     op.update_aad(&extended_aad)?;
-
-    let ciphertext_bytes = cose_encrypt.ciphertext.unwrap_or_default();
-    let part = op.update(&ciphertext_bytes)?;
-    let finish = op
-        .finish()
-        .map_err(|e| km_err!(InvalidKeyBlob, "failed to decrypt keyblob: {:?}", e))?;
-
-    // 优化：预分配解密明文容器大小，避免动态扩容
-    let mut pt_data = vec_try_with_capacity!(part.len() + finish.len())?;
-    pt_data.extend_from_slice(&part);
-    pt_data.try_extend_from_slice(&finish)?;
+    let mut pt_data = op.update(&cose_encrypt.ciphertext.unwrap_or_default())?;
+    pt_data.try_extend_from_slice(
+        &op.finish()
+            .map_err(|e| km_err!(InvalidKeyBlob, "failed to decrypt keyblob: {:?}", e))?,
+    )?;
 
     Ok(PlaintextKeyBlob {
         characteristics,
